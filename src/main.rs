@@ -37,8 +37,8 @@ async fn main() {
 }
 
 /// list_handler 待做列表
-async fn list_handler(State(db_pool): State<Pool>) -> impl IntoResponse {
-    "get ok"
+async fn list_handler(State(db_pool): State<Pool>) -> Result<Json<Vec<TodoModel>>, (StatusCode, String)> {
+    Ok(Json(Vec::new()))
 }
 
 #[derive(Debug, Deserialize)]
