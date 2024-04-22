@@ -14,6 +14,14 @@ use tower_http::trace::TraceLayer;
 const SERVER_ADDR: &'static str = "127.0.0.1:8888";
 const DATABASE_DSN: &'static str = "mysql://root:@localhost:3306/test";
 
+// Models
+#[derive(Debug, Serialize, Clone)]
+struct Todo {
+    id: u64,
+    description: String,
+    completed: bool,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // init logger
@@ -50,7 +58,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn list_handler(
     State(db_pool): State<Pool<MySql>>,
 ) -> Result<Json<Vec<Todo>>, (StatusCode, String)> {
-    Ok(Json(Vec::new()))
+    let recs = sqlx::query!(
+        r#"SELECT `id`, `description`, `completed` FROM `todo_list` ORDER BY `id` DESC"#
+    ).fetch_all(&db_pool).await.map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
+
+    let mut items = Vec::<Todo>::new();
+
+    for rec in &recs {
+        items.push(Todo {
+            id: rec.id as u64,
+            description: rec.description.clone(),
+            completed: rec.completed == 1
+        });
+    }
+
+    Ok(Json(items))
 }
 
 #[derive(Debug, Deserialize)]
@@ -119,12 +141,4 @@ async fn delete_handler(
     }
 
     Ok((StatusCode::OK, "delete ok".into()))
-}
-
-// Models
-#[derive(Debug, Serialize, Clone)]
-struct Todo {
-    id: u64,
-    description: String,
-    completed: bool,
 }
