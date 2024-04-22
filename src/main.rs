@@ -12,10 +12,10 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 const SERVER_ADDR: &'static str = "127.0.0.1:8888";
-const DATABASE_DSN: &'static str = "mysql://root:root@localhost:3306/todo_app";
+const DATABASE_DSN: &'static str = "mysql://root:@localhost:3306/test";
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // init logger
     tracing_subscriber::fmt::init();
 
@@ -24,8 +24,7 @@ async fn main() {
     let pool: Pool<MySql> = MySqlPoolOptions::new()
         .max_connections(5)
         .connect(DATABASE_DSN)
-        .await
-        .unwrap();
+        .await?;
 
     // create a new http app
     let app = Router::new()
@@ -37,32 +36,57 @@ async fn main() {
     // with database connection pool
     let app = app.with_state(pool);
 
-    let listener = TcpListener::bind(SERVER_ADDR).await.unwrap();
+    // create a listener and binding it
+    let listener = TcpListener::bind(SERVER_ADDR).await?;
     tracing::debug!("listening on {}", SERVER_ADDR);
+    // start app
+    axum::serve(listener, app).await?;
 
-    axum::serve(listener, app).await.unwrap();
+    // everything is ok
+    Ok(())
 }
 
 /// list_handler 待做列表
 async fn list_handler(
     State(db_pool): State<Pool<MySql>>,
-) -> Result<Json<Vec<TodoModel>>, (StatusCode, String)> {
+) -> Result<Json<Vec<Todo>>, (StatusCode, String)> {
     Ok(Json(Vec::new()))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTodoReq {
     description: String,
-    completed: bool,
 }
 
 /// create_handler 创建待做
 async fn create_handler(
     State(db_pool): State<Pool<MySql>>,
     Json(input): Json<CreateTodoReq>,
-) -> impl IntoResponse {
-    println!("{input:#?}");
-    StatusCode::CREATED
+) -> Result<(StatusCode, Json<Todo>), (StatusCode, String)> {
+    let query = r#"INSERT INTO `todo_list`(`description`, `completed`) VALUES(?, false)"#;
+    let query_result = sqlx::query(query)
+        .bind(&input.description)
+        .execute(&db_pool)
+        .await;
+
+    if let Err(err) = query_result {
+        _ = err;
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            String::from("failed to create new todo"),
+        ));
+    };
+
+    let last_insert_id = query_result.map_or(0, |res| res.last_insert_id());
+
+    return Ok((
+        StatusCode::CREATED,
+        Json(Todo {
+            id: last_insert_id,
+            description: input.description,
+            completed: false,
+        }),
+    ));
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,7 +116,7 @@ async fn delete_handler(
 
 // Models
 #[derive(Debug, Serialize, Clone)]
-struct TodoModel {
+struct Todo {
     id: u64,
     description: String,
     completed: bool,
