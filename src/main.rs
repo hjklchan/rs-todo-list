@@ -97,10 +97,11 @@ pub struct UpdateTodoReq {
 
 /// update_handler 更新待做
 async fn update_handler(
-    State(db_pool): State<Pool<MySql>>,
+    State(_db_pool): State<Pool<MySql>>,
     Json(input): Json<UpdateTodoReq>,
 ) -> impl IntoResponse {
     // todo
+    let _query = "TODO";
     println!("{input:#?}");
     "update ok"
 }
@@ -109,9 +110,15 @@ async fn update_handler(
 async fn delete_handler(
     Path(id): Path<String>,
     State(db_pool): State<Pool<MySql>>,
-) -> impl IntoResponse {
-    _ = id;
-    "delete ok"
+) -> Result<(StatusCode, String), (StatusCode, String)> {
+    let query: &'static str = "DELETE FROM `todo_list` WHERE `id` = ?";
+    let query_result = sqlx::query(query).bind(id).execute(&db_pool).await;
+
+    if let Err(err) = query_result {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
+    }
+
+    Ok((StatusCode::OK, "delete ok".into()))
 }
 
 // Models
