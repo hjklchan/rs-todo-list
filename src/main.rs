@@ -17,9 +17,9 @@ const DATABASE_DSN: &'static str = "mysql://root:@localhost:3306/test";
 // Models
 #[derive(Debug, Serialize, Clone)]
 struct Todo {
-    id: u64,
+    id: i64,
     description: String,
-    completed: bool,
+    completed: i8,
 }
 
 #[tokio::main]
@@ -58,21 +58,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn list_handler(
     State(db_pool): State<Pool<MySql>>,
 ) -> Result<Json<Vec<Todo>>, (StatusCode, String)> {
-    let recs = sqlx::query!(
+    let recs = sqlx::query_as!(
+        Todo,
         r#"SELECT `id`, `description`, `completed` FROM `todo_list` ORDER BY `id` DESC"#
     ).fetch_all(&db_pool).await.map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
 
-    let mut items = Vec::<Todo>::new();
-
-    for rec in &recs {
-        items.push(Todo {
-            id: rec.id as u64,
-            description: rec.description.clone(),
-            completed: rec.completed == 1
-        });
-    }
-
-    Ok(Json(items))
+    Ok(Json(recs))
 }
 
 #[derive(Debug, Deserialize)]
@@ -104,9 +95,9 @@ async fn create_handler(
     return Ok((
         StatusCode::CREATED,
         Json(Todo {
-            id: last_insert_id,
+            id: last_insert_id as i64,
             description: input.description,
-            completed: false,
+            completed: 0,
         }),
     ));
 }
