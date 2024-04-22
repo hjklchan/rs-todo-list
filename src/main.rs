@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
+const SERVER_ADDR: &'static str = "127.0.0.1:8888";
+
 #[tokio::main]
 async fn main() {
     // init logger
@@ -30,8 +32,8 @@ async fn main() {
     // with database connection pool
     let app = app.with_state(pool);
 
-    let listener = TcpListener::bind("127.0.0.1:8888").await.unwrap();
-    tracing::debug!("listening on {}", "127.0.0.1:8888");
+    let listener = TcpListener::bind(SERVER_ADDR).await.unwrap();
+    tracing::debug!("listening on {}", SERVER_ADDR);
 
     axum::serve(listener, app).await.unwrap();
 }
