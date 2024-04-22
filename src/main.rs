@@ -5,22 +5,27 @@ use axum::{
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use mysql::{Pool};
 use serde::{Deserialize, Serialize};
+use sqlx::mysql::MySqlPoolOptions;
+use sqlx::{MySql, Pool};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 const SERVER_ADDR: &'static str = "127.0.0.1:8888";
+const DATABASE_DSN: &'static str = "mysql://root:root@localhost:3306/todo_app";
 
 #[tokio::main]
 async fn main() {
     // init logger
     tracing_subscriber::fmt::init();
-    
+
     // init db
-    let db_url = "mysql://root:root@localhost:3306/todo_app";
     // create connection pool
-    let pool = Pool::new(db_url).unwrap();
+    let pool: Pool<MySql> = MySqlPoolOptions::new()
+        .max_connections(5)
+        .connect(DATABASE_DSN)
+        .await
+        .unwrap();
 
     // create a new http app
     let app = Router::new()
@@ -39,7 +44,9 @@ async fn main() {
 }
 
 /// list_handler 待做列表
-async fn list_handler(State(db_pool): State<Pool>) -> Result<Json<Vec<TodoModel>>, (StatusCode, String)> {
+async fn list_handler(
+    State(db_pool): State<Pool<MySql>>,
+) -> Result<Json<Vec<TodoModel>>, (StatusCode, String)> {
     Ok(Json(Vec::new()))
 }
 
@@ -51,7 +58,7 @@ pub struct CreateTodoReq {
 
 /// create_handler 创建待做
 async fn create_handler(
-    State(db_pool): State<Pool>,
+    State(db_pool): State<Pool<MySql>>,
     Json(input): Json<CreateTodoReq>,
 ) -> impl IntoResponse {
     println!("{input:#?}");
@@ -66,7 +73,7 @@ pub struct UpdateTodoReq {
 
 /// update_handler 更新待做
 async fn update_handler(
-    State(db_pool): State<Pool>,
+    State(db_pool): State<Pool<MySql>>,
     Json(input): Json<UpdateTodoReq>,
 ) -> impl IntoResponse {
     // todo
@@ -75,7 +82,10 @@ async fn update_handler(
 }
 
 /// delete_handler 删除待做
-async fn delete_handler(Path(id): Path<String>, State(db_pool): State<Pool>) -> impl IntoResponse {
+async fn delete_handler(
+    Path(id): Path<String>,
+    State(db_pool): State<Pool<MySql>>,
+) -> impl IntoResponse {
     _ = id;
     "delete ok"
 }
